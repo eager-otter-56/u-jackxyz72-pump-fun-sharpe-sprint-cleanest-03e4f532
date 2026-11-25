@@ -1,7 +1,6 @@
-// agent-fun/replay/v2 bot shim for Node 22. Zero dependencies and erasable TypeScript only, so it
+// agent-fun/replay/v2 bot shim for Node 22. Zero dependencies, erasable TypeScript only, so it
 // runs as-is under the grader's fixed command `node /bot/main.ts` (Node strips the types; no build,
-// no install). Copy this one file into your bot's repository (vendor/makefun-bot.ts keeps it out of
-// the authorship counts) and hand runBot your strategy:
+// no install). Hand runBot your strategy:
 //
 //   import { runBot, LAMPORTS_PER_SOL } from './vendor/makefun-bot.ts';
 //
@@ -13,31 +12,27 @@
 //     onDone(state, done) {},            // optional: once, last; no reply is sent
 //   });
 //
-// The shim owns the wire. It reads one JSON line at a time from stdin (each at most
-// MAX_HARNESS_LINE_BYTES), keeps `state` current (account, positions, every curve's latest reserves,
-// the orders still in flight), calls onBatch and writes exactly one reply per batch (at most
-// MAX_BOT_LINE_BYTES), echoing the batch's seq, before it reads the next line. Amounts may be bigint,
-// u64 decimal strings or safe integers; the shim writes them as decimal strings and fills in client_id
-// when you leave it out. An order the harness would treat as a protocol violation (malformed mint,
-// amount, bps or client_id, a client_id starting with `_`, an unknown key, a reply line over the
-// limit) throws OrderError here, so a broken bot fails on your machine and not in grading. So does a
-// reply with more orders than hello.caps.max_orders_per_batch: the harness rejects the orders past
-// the cap and fails the run on a reply far over it. Orders the market refuses (position and size caps,
-// cash, slippage) are not errors: they come back in a later batch's fills with status "rejected" and
-// a reason.
+// The shim owns the wire. It reads one JSON line at a time from stdin, keeps `state` current
+// (account, positions, every curve's latest reserves, the orders still in flight), calls onBatch
+// and writes exactly one reply per batch, echoing the batch's seq, before it reads the next line.
+// Amounts may be bigint, u64 decimal strings or safe integers; the shim writes them as decimal
+// strings and fills in client_id when you leave it out. An order the harness would treat as a
+// protocol violation throws OrderError here, so a broken bot fails on your machine and not in
+// grading. Orders the market refuses (position and size caps, cash, slippage) are not errors: they
+// come back in a later batch's fills with status "rejected" and a reason.
 //
-// Two market rules worth knowing before you size orders: the buys on one coin in one reply share one
-// size cap (state.maxBuyLamports), and your own fills on one coin in one slot move the reserves for
-// each other, so splitting an order never gets you a better price than sending it whole.
+// Two market rules worth knowing before you size orders: the buys on one coin in one reply share
+// one size cap (state.maxBuyLamports), and your own fills on one coin in one slot move the reserves
+// for each other, so splitting an order never gets you a better price than sending it whole.
 //
-// stdout carries replies only: write diagnostics to stderr (console.error). Determinism: every entry
-// is executed twice and the two action logs must match byte for byte, so never read the clock, the
-// environment or Math.random; seed any randomness from state.hello.seed.
+// stdout carries replies only: write diagnostics to stderr (console.error). Determinism: every
+// entry is executed twice and the two action logs must match byte for byte, so never read the
+// clock, the environment or Math.random; seed any randomness from state.hello.seed.
 
 export const PROTOCOL = 'agent-fun/replay/v2';
-/** Harness -> bot lines (hello, batch, done) are at most this many UTF-8 bytes, the `\n` not counted (1 MiB). */
+/** Harness -> bot lines (hello, batch, done) are at most this many UTF-8 bytes (1 MiB). */
 export const MAX_HARNESS_LINE_BYTES = 1_048_576;
-/** Bot -> harness lines (your replies) are at most this many UTF-8 bytes, the `\n` not counted (64 KiB). */
+/** Bot -> harness lines (your replies) are at most this many UTF-8 bytes (64 KiB). */
 export const MAX_BOT_LINE_BYTES = 65_536;
 export const PUMP_PROGRAM_ID = '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P';
 export const LAMPORTS_PER_SOL = 1_000_000_000n;
@@ -45,7 +40,7 @@ export const LAMPORTS_PER_SOL = 1_000_000_000n;
 export const BPS = 10_000n;
 export const U64_MAX = 18_446_744_073_709_551_615n;
 
-// ---------------------------------------------------------------- wire types (contracts/protocol.ts)
+// ---------------------------------------------------------------- wire types
 
 /** A u64 as a canonical decimal string; read it with BigInt. */
 export type U64 = string;
@@ -68,9 +63,9 @@ export interface Universe {
 export interface Caps {
   max_open_positions: number;
   /**
-   * The buys on one mint in one reply may together spend at most this share (bps) of the mint's real
-   * SOL reserve at decision time; in reply order, a buy that would take the total past it is rejected
-   * (reason max_order_size) and does not count toward it.
+   * The buys on one mint in one reply may together spend at most this share (bps) of the mint's
+   * real SOL reserve at decision time; in reply order, a buy that would take the total past it is
+   * rejected (reason max_order_size) and does not count toward it.
    */
   max_order_bps_of_real_reserve: number;
   /**
